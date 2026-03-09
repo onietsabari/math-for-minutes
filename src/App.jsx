@@ -159,6 +159,7 @@ export default function MathForMinutes() {
   const [familyCodeError, setFamilyCodeError] = useState("");
   const [childFamily, setChildFamily] = useState(null); // family loaded via code on child device
   const [childProfiles, setChildProfiles] = useState([]);
+  const [parentPhone, setParentPhone] = useState("");
 
   // Quiz state
   const [activeProfile, setActiveProfile] = useState(null);
@@ -206,7 +207,14 @@ export default function MathForMinutes() {
     // Check if child device has a saved family code
     const savedCode = localStorage.getItem("mfm-child-code");
     if (savedCode) loadChildFamily(savedCode);
-    return () => subscription.unsubscribe();
+    const channel = supabase
+  .channel("sessions-changes")
+  .on("postgres_changes", { event: "INSERT", schema: "public", table: "sessions" },
+    payload => setSessions(s => [payload.new, ...s])
+  )
+  .subscribe();
+
+return () => { subscription.unsubscribe(); channel.unsubscribe(); };
   }, []);
 
   async function loadFamily(u) {
@@ -217,7 +225,7 @@ export default function MathForMinutes() {
       fam = newFam;
     }
     setFamily(fam);
-    const { data: profs } = await supabase.from("profiles").select("*").eq("family_id", fam.id).order("created_at");
+    const { data: profs } = await supabase.from("profiles").select("*").eq("family_id", fam.id).order("created_at");setParentPhone(fam.parent_phone || "");
     setProfiles(profs || []);
     const { data: sess } = await supabase.from("sessions").select("*").eq("family_id", fam.id).order("created_at", { ascending: false }).limit(50);
     setSessions(sess || []);
@@ -561,7 +569,14 @@ export default function MathForMinutes() {
           <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,maxWidth:240,margin:"0 auto 20px"}}>
             {[1,2,3,4,5,6,7,8,9,"",0,"⌫"].map((d,i)=>(
               <button key={i} className="pin-btn" disabled={d===""} style={{visibility:d===""?"hidden":"visible"}}
-                onClick={()=>{if(d==="⌫")setPinInput(p=>p.slice(0,-1));else if(pinInput.length<4){const np=pinInput+d;setPinInput(np);if(np.length===4)setTimeout(()=>{if(np===parentPin){setScreen("dashboard");setPinError(false);setPinInput("");}else{setPinError(true);setPinInput("");}},200);}}}>
+                onClick={()=>{if(d==="⌫")setPinInput(p=>p.slice(0,-1));else if(pinInput.length<4){const np=pinInput+d;setPinInput(np);if(np.length===4)setTimeout(()=>{if(np===parentPin){
+  supabase.from("sessions").select("*").eq("family_id", family.id)
+    .order("created_at", { ascending: false }).limit(50)
+    .then(({ data }) => { if(data) setSessions(data); });
+  setScreen("dashboard");
+  setPinError(false);
+  setPinInput("");
+}else{setPinError(true);setPinInput("");}}}>
                 {d}
               </button>
             ))}
@@ -612,12 +627,14 @@ export default function MathForMinutes() {
 
           {/* WhatsApp number */}
           <div style={{marginBottom:20}}>
-            <label>WhatsApp number</label>
-            <div style={{display:"flex",gap:8}}>
-              <input type="text" placeholder="+972501234567" defaultValue={family?.parent_phone||""} id="phone-input"/>
-              <button className="btn btn-primary" style={{padding:"12px 16px",fontSize:14}} onClick={()=>saveParentPhone(document.getElementById("phone-input").value)}>Save</button>
-            </div>
-          </div>
+  <label>WhatsApp number</label>
+  <div style={{display:"flex",gap:8}}>
+    <input type="text" placeholder="+972501234567" value={parentPhone}
+      onChange={e=>setParentPhone(e.target.value)}/>
+    <button className="btn btn-primary" style={{padding:"12px 16px",fontSize:14}}
+      onClick={()=>saveParentPhone(parentPhone)}>Save</button>
+  </div>
+</div>
 
           {/* PIN */}
           <div style={{marginBottom:24}}>
