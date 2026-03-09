@@ -328,7 +328,11 @@ export default function MathForMinutes() {
                 <div style={{ color:"white", fontSize:20, marginTop:4, fontWeight:800 }}>{settings.parentPhone}</div>
               </div>
               <button className="btn btn-primary" style={{ width:"100%", fontSize:17, marginBottom:10 }}
-              onClick={() => { const msg = `\u{1F9EE} Math For Minutes Report\n\u{1F466} ${settings.childName} just finished!\n\n\u{2705} Correct: ${questionsAnswered}\n\u274C Wrong: ${wrongAnswers}\n\u{23F1} Minutes earned: ${earnedMins}\n\u{1F525} Best streak: ${bestStreak}\n\u{1F4DA} Level: ${diffLabel[settings.difficulty]}\n\nPlease unlock ${earnedMins} minute${earnedMins!==1?"s":""} of internet time \u{1F64F}`; window.open(`https://wa.me/${settings.parentPhone.replace(/\D/g,'')}?text=${encodeURI(msg)}`, '_blank'); }}>
+              onClick={() => {
+  const e = (code) => String.fromCodePoint(code);
+  const msg = `${e(0x1F9EE)} Math For Minutes Report\n${e(0x1F466)} ${settings.childName} just finished!\n\n${e(0x2705)} Correct: ${questionsAnswered}\n${e(0x274C)} Wrong: ${wrongAnswers}\n${e(0x23F1)} Minutes earned: ${earnedMins}\n${e(0x1F525)} Best streak: ${bestStreak}\n${e(0x1F4DA)} Level: ${diffLabel[settings.difficulty]}\n\nPlease unlock ${earnedMins} minute${earnedMins!==1?"s":""} of internet time ${e(0x1F64F)}`;
+  window.open(`https://wa.me/${settings.parentPhone.replace(/\D/g,'')}?text=${encodeURIComponent(msg)}`, '_blank');
+}}>
                 📨 Send Results via WhatsApp
               </button>
             </>
