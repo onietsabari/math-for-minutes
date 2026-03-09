@@ -223,7 +223,11 @@ export default function MathForMinutes() {
     setTempSettings(settings); setPinInput(""); setPinError(false); setScreen("pin");
   }
 
-  function saveSettings() { setSettings(tempSettings); setScreen("home"); }
+  function saveSettings() {
+  setSettings(tempSettings);
+  localStorage.setItem("mfm-settings", JSON.stringify(tempSettings));
+  setScreen("home");
+}
 
   const mins = Math.floor(timerSecs / 60);
   const secs = timerSecs % 60;
