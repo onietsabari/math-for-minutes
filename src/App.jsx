@@ -319,7 +319,7 @@ export default function MathForMinutes() {
                 <div style={{ color:"white", fontSize:20, marginTop:4, fontWeight:800 }}>{settings.parentPhone}</div>
               </div>
               <button className="btn btn-primary" style={{ width:"100%", fontSize:17, marginBottom:10 }}
-                onClick={() => { const msg=`🧮 Math For Minutes Report\n👦 ${settings.childName} just finished!\n\n✅ Correct: ${questionsAnswered}\n❌ Wrong: ${wrongAnswers}\n⏱️ Minutes earned: ${earnedMins}\n🔥 Best streak: ${bestStreak}\n📚 Level: ${diffLabel[settings.difficulty]}\n\nPlease unlock ${earnedMins} minute${earnedMins!==1?"s":""} of internet time 🙏`; window.location.href=`sms:${settings.parentPhone}?body=${encodeURIComponent(msg)}`; }}>
+                onClick={() => { const msg=`🧮 Math For Minutes Report\n👦 ${settings.childName} just finished!\n\n✅ Correct: ${questionsAnswered}\n❌ Wrong: ${wrongAnswers}\n⏱️ Minutes earned: ${earnedMins}\n🔥 Best streak: ${bestStreak}\n📚 Level: ${diffLabel[settings.difficulty]}\n\nPlease unlock ${earnedMins} minute${earnedMins!==1?"s":""} of internet time 🙏`; window.location.href=`https://wa.me/${settings.parentPhone.replace(/\D/g,'')}?text=${encodeURIComponent(msg)}`; }}>
                 📨 Text My Results to Parent
               </button>
             </>
