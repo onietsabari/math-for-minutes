@@ -576,7 +576,7 @@ return () => { subscription.unsubscribe(); channel.unsubscribe(); };
   setScreen("dashboard");
   setPinError(false);
   setPinInput("");
-}else{setPinError(true);setPinInput("");}}}>
+}else{setPinError(true);setPinInput("");}})>
                 {d}
               </button>
             ))}
