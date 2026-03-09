@@ -315,7 +315,7 @@ export default function MathForMinutes() {
           {settings.parentPhone ? (
             <>
               <div style={{ background:"rgba(78,205,196,0.1)", border:"1px solid rgba(78,205,196,0.3)", borderRadius:16, padding:"14px 16px", marginBottom:20 }}>
-                <div style={{ color:"#4ECDC4", fontSize:14, fontWeight:700 }}>📱 Opens Messages app pre-filled for:</div>
+                <div style={{ color:"#4ECDC4", fontSize:14, fontWeight:700 }}>📱 Opens WhatsApp pre-filled for:</div>
                 <div style={{ color:"white", fontSize:20, marginTop:4, fontWeight:800 }}>{settings.parentPhone}</div>
               </div>
               <button className="btn btn-primary" style={{ width:"100%", fontSize:17, marginBottom:10 }}
