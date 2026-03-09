@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { supabase } from "./supabase";
+import { supabase } from "./supabase.js";
 
 // ── Math engine ────────────────────────────────────────────────
 function gcd(a, b) { return b === 0 ? a : gcd(b, a % b); }
