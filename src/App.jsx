@@ -1,45 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { supabase } from "./supabase";
 
-const DEFAULT_PROFILE = {
-  id: 1,
-  name: "Child 1",
-  difficulty: "medium",
-  minutesPerQuestion: 2,
-  minutesPerWrong: 1,
-  avatar: "🦁",
-};
-
-const DEFAULT_SETTINGS = {
-  parentPin: "1234",
-  parentPhone: "",
-  profiles: [DEFAULT_PROFILE],
-};
-
-function loadSettings() {
-  try {
-    const s = localStorage.getItem("mfm-settings");
-    return s ? { ...DEFAULT_SETTINGS, ...JSON.parse(s) } : DEFAULT_SETTINGS;
-  } catch { return DEFAULT_SETTINGS; }
-}
-
-function saveSettingsToStorage(s) {
-  localStorage.setItem("mfm-settings", JSON.stringify(s));
-}
-
-function loadResults() {
-  try {
-    const r = localStorage.getItem("mfm-results");
-    return r ? JSON.parse(r) : [];
-  } catch { return []; }
-}
-
-function saveResult(result) {
-  const results = loadResults();
-  results.unshift(result);
-  if (results.length > 100) results.length = 100;
-  localStorage.setItem("mfm-results", JSON.stringify(results));
-}
-
+// ── Math engine ────────────────────────────────────────────────
 function gcd(a, b) { return b === 0 ? a : gcd(b, a % b); }
 
 function generateQuestion(difficulty) {
@@ -112,6 +74,7 @@ function generateQuestion(difficulty) {
   return generateQuestion("easy");
 }
 
+// ── UI helpers ─────────────────────────────────────────────────
 function Particles({ trigger }) {
   const [particles, setParticles] = useState([]);
   useEffect(() => {
@@ -129,7 +92,7 @@ function Particles({ trigger }) {
 }
 
 function TimerRing({ totalSecs, remainingSecs }) {
-  const r=54, circ=2*Math.PI*r, pct=totalSecs>0?remainingSecs/totalSecs:0;
+  const r=54,circ=2*Math.PI*r,pct=totalSecs>0?remainingSecs/totalSecs:0;
   const color=pct>.5?"#4ECDC4":pct>.25?"#FFD700":"#FF6B6B";
   return (
     <svg width="130" height="130" style={{transform:"rotate(-90deg)"}}>
@@ -148,8 +111,52 @@ function formatDate(ts) {
   return d.toLocaleDateString(undefined,{month:"short",day:"numeric"}) + " " + d.toLocaleTimeString(undefined,{hour:"2-digit",minute:"2-digit"});
 }
 
+const CSS = `
+  @keyframes burst{0%{transform:scale(0) rotate(0deg);opacity:1}100%{transform:scale(3) rotate(180deg) translate(30px,-30px);opacity:0}}
+  @keyframes pop{0%{transform:scale(0.8)}60%{transform:scale(1.15)}100%{transform:scale(1)}}
+  @keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.6}}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .card{background:rgba(255,255,255,0.07);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.12);border-radius:28px;padding:40px;max-width:440px;width:100%;position:relative;animation:fadeIn 0.4s ease}
+  .btn{border:none;cursor:pointer;border-radius:16px;font-family:sans-serif;font-size:18px;padding:14px 28px;transition:all 0.15s;font-weight:700}
+  .btn:hover{transform:translateY(-2px);filter:brightness(1.1)}
+  .btn:active{transform:translateY(0) scale(0.97)}
+  .btn-primary{background:linear-gradient(135deg,#4ECDC4,#45B7D1);color:white;box-shadow:0 4px 20px rgba(78,205,196,0.4)}
+  .btn-success{background:linear-gradient(135deg,#96CEB4,#4ECDC4);color:#1a1a2e;box-shadow:0 4px 20px rgba(150,206,180,0.4)}
+  .btn-ghost{background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.8)}
+  .btn-danger{background:rgba(255,107,107,0.2);color:#FF6B6B;border:1px solid rgba(255,107,107,0.3)}
+  .btn-google{background:white;color:#333;display:flex;align-items:center;justify-content:center;gap:10px;font-size:16px}
+  .math-input{background:rgba(255,255,255,0.1);border:2px solid rgba(255,255,255,0.2);border-radius:16px;color:white;font-size:32px;text-align:center;padding:14px;width:100%;box-sizing:border-box;outline:none;transition:border 0.2s;font-weight:700}
+  .math-input:focus{border-color:#4ECDC4;box-shadow:0 0 0 3px rgba(78,205,196,0.2)}
+  .pin-btn{background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:white;border-radius:14px;font-size:22px;padding:16px;cursor:pointer;transition:all 0.15s;font-weight:700}
+  .pin-btn:hover{background:rgba(255,255,255,0.2)}
+  label{color:rgba(255,255,255,0.6);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:8px}
+  select,input[type=number],input[type=text],input[type=password]{background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:12px;color:white;font-size:16px;padding:12px 16px;width:100%;box-sizing:border-box;outline:none}
+  select:focus,input:focus{border-color:#4ECDC4}
+  select option{background:#302b63}
+  h1,h2{font-weight:800}
+  .profile-card{background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:20px;padding:20px;cursor:pointer;transition:all 0.2s;text-align:center}
+  .profile-card:hover{background:rgba(255,255,255,0.12);transform:translateY(-3px)}
+  .result-row{background:rgba(255,255,255,0.05);border-radius:14px;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:12px}
+  .spinner{width:40px;height:40px;border:4px solid rgba(255,255,255,0.1);border-top-color:#4ECDC4;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto}
+`;
+
+// ── Main app ───────────────────────────────────────────────────
 export default function MathForMinutes() {
-  const [settings, setSettings] = useState(loadSettings);
+  // Auth & family state
+  const [user, setUser] = useState(null);
+  const [family, setFamily] = useState(null);
+  const [profiles, setProfiles] = useState([]);
+  const [sessions, setSessions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [authMode, setAuthMode] = useState("landing"); // landing | parent | child
+  const [familyCodeInput, setFamilyCodeInput] = useState("");
+  const [familyCodeError, setFamilyCodeError] = useState("");
+  const [childFamily, setChildFamily] = useState(null); // family loaded via code on child device
+  const [childProfiles, setChildProfiles] = useState([]);
+
+  // Quiz state
   const [activeProfile, setActiveProfile] = useState(null);
   const [screen, setScreen] = useState("select");
   const [question, setQuestion] = useState(null);
@@ -163,16 +170,110 @@ export default function MathForMinutes() {
   const [burstKey, setBurstKey] = useState(0);
   const [timerSecs, setTimerSecs] = useState(0);
   const [totalSecs, setTotalSecs] = useState(0);
+  const [shake, setShake] = useState(false);
+
+  // Parent settings state
   const [pinInput, setPinInput] = useState("");
   const [pinError, setPinError] = useState(false);
-  const [tempSettings, setTempSettings] = useState(loadSettings);
-  const [shake, setShake] = useState(false);
-  const [results, setResults] = useState(loadResults);
+  const [parentPin, setParentPin] = useState(() => localStorage.getItem("mfm-pin") || "1234");
   const [filterProfile, setFilterProfile] = useState("all");
+  const [editingProfile, setEditingProfile] = useState(null);
+  const [newProfileName, setNewProfileName] = useState("");
+  const [newProfileAvatar, setNewProfileAvatar] = useState("🦁");
+  const [newProfileDiff, setNewProfileDiff] = useState("medium");
+  const [newProfileMPQ, setNewProfileMPQ] = useState(2);
+  const [newProfileMPW, setNewProfileMPW] = useState(1);
+
   const inputRef = useRef(null);
   const intervalRef = useRef(null);
 
-  const profile = activeProfile ? settings.profiles.find(p=>p.id===activeProfile) : null;
+  // ── Auth listener ──────────────────────────────────────────
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      if (session?.user) loadFamily(session.user);
+      else setLoading(false);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+      setUser(session?.user ?? null);
+      if (session?.user) loadFamily(session.user);
+      else { setFamily(null); setProfiles([]); setSessions([]); setLoading(false); }
+    });
+    // Check if child device has a saved family code
+    const savedCode = localStorage.getItem("mfm-child-code");
+    if (savedCode) loadChildFamily(savedCode);
+    return () => subscription.unsubscribe();
+  }, []);
+
+  async function loadFamily(u) {
+    setLoading(true);
+    let { data: fam } = await supabase.from("families").select("*").eq("owner_id", u.id).single();
+    if (!fam) {
+      const { data: newFam } = await supabase.from("families").insert({ owner_id: u.id }).select().single();
+      fam = newFam;
+    }
+    setFamily(fam);
+    const { data: profs } = await supabase.from("profiles").select("*").eq("family_id", fam.id).order("created_at");
+    setProfiles(profs || []);
+    const { data: sess } = await supabase.from("sessions").select("*").eq("family_id", fam.id).order("created_at", { ascending: false }).limit(50);
+    setSessions(sess || []);
+    setLoading(false);
+  }
+
+  async function loadChildFamily(code) {
+    const { data: fam } = await supabase.from("families").select("*").eq("family_code", code.toUpperCase()).single();
+    if (fam) {
+      setChildFamily(fam);
+      const { data: profs } = await supabase.from("profiles").select("*").eq("family_id", fam.id).order("created_at");
+      setChildProfiles(profs || []);
+      localStorage.setItem("mfm-child-code", code.toUpperCase());
+    }
+  }
+
+  async function signInWithGoogle() {
+    await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: window.location.href } });
+  }
+
+  async function signOut() {
+    await supabase.auth.signOut();
+    setAuthMode("landing");
+  }
+
+  // ── Profile CRUD ───────────────────────────────────────────
+  async function addProfile() {
+    if (!newProfileName.trim()) return;
+    const { data } = await supabase.from("profiles").insert({
+      family_id: family.id, name: newProfileName.trim(),
+      avatar: newProfileAvatar, difficulty: newProfileDiff,
+      minutes_per_question: newProfileMPQ, minutes_per_wrong: newProfileMPW,
+    }).select().single();
+    if (data) { setProfiles(p=>[...p,data]); setNewProfileName(""); }
+  }
+
+  async function saveProfile(id) {
+    const { data } = await supabase.from("profiles").update({
+      name: editingProfile.name, avatar: editingProfile.avatar,
+      difficulty: editingProfile.difficulty,
+      minutes_per_question: editingProfile.minutes_per_question,
+      minutes_per_wrong: editingProfile.minutes_per_wrong,
+    }).eq("id", id).select().single();
+    if (data) { setProfiles(p=>p.map(x=>x.id===id?data:x)); setEditingProfile(null); }
+  }
+
+  async function deleteProfile(id) {
+    await supabase.from("profiles").delete().eq("id", id);
+    setProfiles(p=>p.filter(x=>x.id!==id));
+  }
+
+  async function saveParentPhone(phone) {
+    await supabase.from("families").update({ parent_phone: phone }).eq("id", family.id);
+    setFamily(f=>({...f, parent_phone: phone}));
+  }
+
+  // ── Quiz logic ─────────────────────────────────────────────
+  const profile = activeProfile
+    ? (user ? profiles : childProfiles).find(p=>p.id===activeProfile)
+    : null;
 
   const newQuestion = useCallback(() => {
     if (!profile) return;
@@ -181,7 +282,7 @@ export default function MathForMinutes() {
     setTimeout(()=>inputRef.current?.focus(),50);
   }, [profile]);
 
-  useEffect(()=>{if(screen==="quiz")newQuestion();},[screen]);
+  useEffect(()=>{ if(screen==="quiz") newQuestion(); },[screen]);
 
   useEffect(()=>{
     if(screen!=="timer")return;
@@ -218,13 +319,13 @@ export default function MathForMinutes() {
     setFeedback("correct");setBurstKey(k=>k+1);
     setStreak(ns);setBestStreak(b=>Math.max(b,ns));
     setQuestionsAnswered(q=>q+1);
-    setEarnedMins(m=>m+profile.minutesPerQuestion);
+    setEarnedMins(m=>m+profile.minutes_per_question);
     setTimeout(newQuestion,900);
   }
 
   function handleWrong() {
     setFeedback("wrong");setShake(true);setWrongAnswers(w=>w+1);
-    setEarnedMins(m=>Math.max(0,m-profile.minutesPerWrong));
+    setEarnedMins(m=>Math.max(0,m-profile.minutes_per_wrong));
     setTimeout(()=>{setShake(false);setInput("");setFeedback(null);inputRef.current?.focus();},700);
   }
 
@@ -232,129 +333,147 @@ export default function MathForMinutes() {
     setTimerSecs(earnedMins*60);setTotalSecs(earnedMins*60);setScreen("timer");
   }
 
-  function openSettings() {
-    setTempSettings(settings);setPinInput("");setPinError(false);setScreen("pin");
-  }
-
-  function saveSettings() {
-    setSettings(tempSettings);
-    saveSettingsToStorage(tempSettings);
-    setScreen(activeProfile?"home":"select");
-  }
-
-  function goToSummary() {
+  async function goToSummary() {
+    const famId = user ? family.id : childFamily.id;
     const result = {
-      ts: Date.now(),
-      profileId: profile.id,
-      profileName: profile.name,
-      profileAvatar: profile.avatar,
+      family_id: famId,
+      profile_id: profile.id,
+      profile_name: profile.name,
+      profile_avatar: profile.avatar,
       difficulty: profile.difficulty,
       correct: questionsAnswered,
       wrong: wrongAnswers,
       minutes: earnedMins,
-      bestStreak,
+      best_streak: bestStreak,
     };
-    saveResult(result);
-    setResults(loadResults());
+    await supabase.from("sessions").insert(result);
     setScreen("summary");
   }
 
   function sendWhatsApp() {
+    const phone = user ? family.parent_phone : childFamily.parent_phone;
     const e = code => String.fromCodePoint(code);
     const msg = `${e(0x1F9EE)} Math For Minutes Report\n${e(0x1F466)} ${profile.name} just finished!\n\n${e(0x2705)} Correct: ${questionsAnswered}\n${e(0x274C)} Wrong: ${wrongAnswers}\n${e(0x23F1)} Minutes earned: ${earnedMins}\n${e(0x1F525)} Best streak: ${bestStreak}\n${e(0x1F4DA)} Level: ${diffLabel[profile.difficulty]}\n\nPlease unlock ${earnedMins} minute${earnedMins!==1?"s":""} of internet time ${e(0x1F64F)}`;
     const encoded = encodeURIComponent(msg);
-    window.location.href = `intent://send?phone=${settings.parentPhone.replace(/\D/g,'')}&text=${encoded}#Intent;scheme=whatsapp;package=com.whatsapp;end`;
-  }
-
-  function addProfile() {
-    const id = Date.now();
-    const newProfile = {...DEFAULT_PROFILE, id, name:`Child ${tempSettings.profiles.length+1}`, avatar: AVATARS[tempSettings.profiles.length % AVATARS.length]};
-    setTempSettings(s=>({...s,profiles:[...s.profiles,newProfile]}));
-  }
-
-  function removeProfile(id) {
-    setTempSettings(s=>({...s,profiles:s.profiles.filter(p=>p.id!==id)}));
-  }
-
-  function updateProfile(id, key, val) {
-    setTempSettings(s=>({...s,profiles:s.profiles.map(p=>p.id===id?{...p,[key]:val}:p)}));
+    window.location.href = `intent://send?phone=${phone.replace(/\D/g,'')}&text=${encoded}#Intent;scheme=whatsapp;package=com.whatsapp;end`;
   }
 
   const mins=Math.floor(timerSecs/60), secs=timerSecs%60;
-  const filteredResults = filterProfile==="all" ? results : results.filter(r=>r.profileId===Number(filterProfile));
+  const activeProfiles = user ? profiles : childProfiles;
+  const familyData = user ? family : childFamily;
+  const filteredSessions = filterProfile==="all" ? sessions : sessions.filter(r=>r.profile_id===filterProfile);
 
-  const css = `
-    @keyframes burst{0%{transform:scale(0) rotate(0deg);opacity:1}100%{transform:scale(3) rotate(180deg) translate(30px,-30px);opacity:0}}
-    @keyframes pop{0%{transform:scale(0.8)}60%{transform:scale(1.15)}100%{transform:scale(1)}}
-    @keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
-    @keyframes fadeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
-    @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.6}}
-    .card{background:rgba(255,255,255,0.07);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.12);border-radius:28px;padding:40px;max-width:440px;width:100%;position:relative;animation:fadeIn 0.4s ease}
-    .btn{border:none;cursor:pointer;border-radius:16px;font-family:sans-serif;font-size:18px;padding:14px 28px;transition:all 0.15s;font-weight:700}
-    .btn:hover{transform:translateY(-2px);filter:brightness(1.1)}
-    .btn:active{transform:translateY(0) scale(0.97)}
-    .btn-primary{background:linear-gradient(135deg,#4ECDC4,#45B7D1);color:white;box-shadow:0 4px 20px rgba(78,205,196,0.4)}
-    .btn-success{background:linear-gradient(135deg,#96CEB4,#4ECDC4);color:#1a1a2e;box-shadow:0 4px 20px rgba(150,206,180,0.4)}
-    .btn-ghost{background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.8)}
-    .btn-danger{background:rgba(255,107,107,0.2);color:#FF6B6B;border:1px solid rgba(255,107,107,0.3)}
-    .math-input{background:rgba(255,255,255,0.1);border:2px solid rgba(255,255,255,0.2);border-radius:16px;color:white;font-size:32px;text-align:center;padding:14px;width:100%;box-sizing:border-box;outline:none;transition:border 0.2s;font-weight:700}
-    .math-input:focus{border-color:#4ECDC4;box-shadow:0 0 0 3px rgba(78,205,196,0.2)}
-    .pin-btn{background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:white;border-radius:14px;font-size:22px;padding:16px;cursor:pointer;transition:all 0.15s;font-weight:700}
-    .pin-btn:hover{background:rgba(255,255,255,0.2)}
-    label{color:rgba(255,255,255,0.6);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:8px}
-    select,input[type=number],input[type=text],input[type=password]{background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:12px;color:white;font-size:16px;padding:12px 16px;width:100%;box-sizing:border-box;outline:none}
-    select:focus,input:focus{border-color:#4ECDC4}
-    select option{background:#302b63}
-    h1,h2{font-weight:800}
-    .profile-card{background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:20px;padding:20px;cursor:pointer;transition:all 0.2s;text-align:center}
-    .profile-card:hover{background:rgba(255,255,255,0.12);transform:translateY(-3px)}
-    .result-row{background:rgba(255,255,255,0.05);border-radius:14px;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:12px}
-  `;
+  // ── Render ─────────────────────────────────────────────────
+  if (loading) return (
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"linear-gradient(135deg,#0f0c29,#302b63,#24243e)"}}>
+      <style>{CSS}</style>
+      <div className="spinner"/>
+    </div>
+  );
 
   return (
     <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"linear-gradient(135deg,#0f0c29,#302b63,#24243e)",fontFamily:"'Segoe UI',sans-serif",padding:"20px"}}>
-      <style>{css}</style>
+      <style>{CSS}</style>
 
-      {screen==="select" && (
+      {/* ── LANDING ── */}
+      {!user && !childFamily && authMode==="landing" && (
+        <div className="card" style={{textAlign:"center"}}>
+          <div style={{fontSize:56,marginBottom:8}}>🧮</div>
+          <h1 style={{fontSize:34,color:"white",margin:"0 0 8px"}}>Math For Minutes</h1>
+          <p style={{color:"rgba(255,255,255,0.5)",margin:"0 0 36px",fontSize:15}}>Solve math problems → Earn internet time!</p>
+          <div style={{display:"flex",flexDirection:"column",gap:12}}>
+            <button className="btn btn-primary" onClick={()=>setAuthMode("parent")} style={{fontSize:17}}>👨‍👩‍👧 I'm a Parent</button>
+            <button className="btn btn-ghost" onClick={()=>setAuthMode("child")} style={{fontSize:17}}>🧒 I'm a Child</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── PARENT LOGIN ── */}
+      {!user && !childFamily && authMode==="parent" && (
+        <div className="card" style={{textAlign:"center"}}>
+          <div style={{fontSize:44,marginBottom:12}}>👨‍👩‍👧</div>
+          <h2 style={{color:"white",fontSize:26,margin:"0 0 8px"}}>Parent Sign In</h2>
+          <p style={{color:"rgba(255,255,255,0.4)",margin:"0 0 28px",fontSize:14}}>Sign in to manage your family and view results</p>
+          <button className="btn btn-google" onClick={signInWithGoogle} style={{width:"100%",marginBottom:16}}>
+            <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+            Continue with Google
+          </button>
+          <button className="btn btn-ghost" onClick={()=>setAuthMode("landing")} style={{width:"100%",fontSize:14}}>← Back</button>
+        </div>
+      )}
+
+      {/* ── CHILD LOGIN (family code) ── */}
+      {!user && !childFamily && authMode==="child" && (
+        <div className="card" style={{textAlign:"center"}}>
+          <div style={{fontSize:44,marginBottom:12}}>🧒</div>
+          <h2 style={{color:"white",fontSize:26,margin:"0 0 8px"}}>Enter Family Code</h2>
+          <p style={{color:"rgba(255,255,255,0.4)",margin:"0 0 24px",fontSize:14}}>Ask your parent for the 6-letter code</p>
+          <input type="text" placeholder="e.g. AB12CD" maxLength={6}
+            value={familyCodeInput} onChange={e=>setFamilyCodeInput(e.target.value.toUpperCase())}
+            style={{textAlign:"center",fontSize:28,letterSpacing:8,marginBottom:12,textTransform:"uppercase"}}/>
+          {familyCodeError&&<div style={{color:"#FF6B6B",fontSize:13,marginBottom:10}}>{familyCodeError}</div>}
+          <button className="btn btn-primary" style={{width:"100%",marginBottom:10}} onClick={async()=>{
+            setFamilyCodeError("");
+            const { data: fam } = await supabase.from("families").select("*").eq("family_code",familyCodeInput).single();
+            if(!fam){setFamilyCodeError("Code not found — check with your parent");return;}
+            await loadChildFamily(familyCodeInput);
+          }}>Let's Go! →</button>
+          <button className="btn btn-ghost" onClick={()=>setAuthMode("landing")} style={{width:"100%",fontSize:14}}>← Back</button>
+        </div>
+      )}
+
+      {/* ── PROFILE SELECT (child or parent playing) ── */}
+      {(user||childFamily) && screen==="select" && (
         <div className="card" style={{textAlign:"center"}}>
           <div style={{fontSize:52,marginBottom:8}}>🧮</div>
           <h1 style={{fontSize:32,color:"white",margin:"0 0 6px"}}>Math For Minutes</h1>
           <p style={{color:"rgba(255,255,255,0.5)",margin:"0 0 28px",fontSize:15}}>Who's playing today?</p>
-          <div style={{display:"grid",gridTemplateColumns:settings.profiles.length>1?"1fr 1fr":"1fr",gap:14,marginBottom:24}}>
-            {settings.profiles.map(p=>(
+          {activeProfiles.length===0 && (
+            <div style={{color:"rgba(255,255,255,0.3)",marginBottom:20,fontSize:14}}>No profiles yet — add children in Parent Settings</div>
+          )}
+          <div style={{display:"grid",gridTemplateColumns:activeProfiles.length>1?"1fr 1fr":"1fr",gap:14,marginBottom:24}}>
+            {activeProfiles.map(p=>(
               <div key={p.id} className="profile-card" onClick={()=>selectProfile(p.id)}>
-                <div style={{fontSize:44,marginBottom:8}}>{p.avatar||"🦁"}</div>
+                <div style={{fontSize:44,marginBottom:8}}>{p.avatar}</div>
                 <div style={{color:"white",fontSize:18,fontWeight:800}}>{p.name}</div>
                 <div style={{color:diffColor[p.difficulty],fontSize:12,marginTop:4,fontWeight:700}}>{diffLabel[p.difficulty]}</div>
               </div>
             ))}
           </div>
-          <button className="btn btn-ghost" onClick={openSettings} style={{fontSize:14,padding:"10px 20px",width:"100%"}}>🔒 Parent Settings</button>
+          {user && <button className="btn btn-ghost" onClick={()=>setScreen("pin")} style={{fontSize:14,padding:"10px 20px",width:"100%",marginBottom:8}}>⚙️ Parent Dashboard</button>}
+          {user && <button className="btn btn-ghost" onClick={signOut} style={{fontSize:12,padding:"8px",width:"100%",opacity:0.5}}>Sign out</button>}
+          {childFamily && (
+            <button className="btn btn-ghost" onClick={()=>{
+              localStorage.removeItem("mfm-child-code");
+              setChildFamily(null);setChildProfiles([]);setAuthMode("landing");
+            }} style={{fontSize:12,padding:"8px",width:"100%",opacity:0.5}}>Change family code</button>
+          )}
         </div>
       )}
 
-      {screen==="home" && profile && (
+      {/* ── HOME ── */}
+      {(user||childFamily) && screen==="home" && profile && (
         <div className="card" style={{textAlign:"center"}}>
           <button onClick={()=>setScreen("select")} style={{background:"none",border:"none",color:"rgba(255,255,255,0.4)",cursor:"pointer",fontSize:13,position:"absolute",top:20,left:20}}>← Switch</button>
-          <div style={{fontSize:52,marginBottom:4}}>{profile.avatar||"🦁"}</div>
+          <div style={{fontSize:52,marginBottom:4}}>{profile.avatar}</div>
           <h1 style={{fontSize:32,color:"white",margin:"0 0 4px"}}>{profile.name}</h1>
           <div style={{color:diffColor[profile.difficulty],fontSize:13,fontWeight:700,marginBottom:24}}>{diffLabel[profile.difficulty]}</div>
           <div style={{background:"rgba(255,255,255,0.06)",borderRadius:18,padding:"20px",marginBottom:28}}>
             <div style={{fontSize:48,color:"#4ECDC4",fontWeight:800}}>{earnedMins}</div>
             <div style={{color:"rgba(255,255,255,0.5)",fontSize:14}}>minutes earned</div>
             <div style={{color:"rgba(255,255,255,0.3)",fontSize:13,marginTop:6}}>
-              +{profile.minutesPerQuestion} min correct · <span style={{color:"#FF6B6B"}}>-{profile.minutesPerWrong} min wrong</span>
+              +{profile.minutes_per_question} min correct · <span style={{color:"#FF6B6B"}}>-{profile.minutes_per_wrong} min wrong</span>
             </div>
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:12}}>
             <button className="btn btn-primary" onClick={()=>setScreen("quiz")}>✏️ Do Math Problems</button>
             {earnedMins>0&&<button className="btn btn-success" onClick={startTimer} style={{animation:"pulse 2s infinite"}}>🌐 Start {earnedMins} Min Internet Session</button>}
-            <button className="btn btn-ghost" onClick={openSettings} style={{fontSize:14,padding:"10px 20px"}}>🔒 Parent Settings</button>
           </div>
         </div>
       )}
 
-      {screen==="quiz" && question && profile && (
+      {/* ── QUIZ ── */}
+      {(user||childFamily) && screen==="quiz" && question && profile && (
         <div className="card" style={{textAlign:"center"}}>
           <Particles trigger={burstKey}/>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:28}}>
@@ -371,8 +490,8 @@ export default function MathForMinutes() {
           <input ref={inputRef} type={question?.isText?"text":"number"} className="math-input" value={input}
             onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submitAnswer()} placeholder="?"
             style={{marginBottom:20,animation:shake?"shake 0.4s ease":"none",borderColor:feedback==="correct"?"#4ECDC4":feedback==="wrong"?"#FF6B6B":undefined}}/>
-          {feedback==="correct"&&<div style={{color:"#4ECDC4",fontSize:22,marginBottom:12,fontWeight:800}}>✅ Correct! +{profile.minutesPerQuestion} min</div>}
-          {feedback==="wrong"&&<div style={{color:"#FF6B6B",fontSize:22,marginBottom:12,fontWeight:800}}>❌ -{profile.minutesPerWrong} min — Try again!</div>}
+          {feedback==="correct"&&<div style={{color:"#4ECDC4",fontSize:22,marginBottom:12,fontWeight:800}}>✅ Correct! +{profile.minutes_per_question} min</div>}
+          {feedback==="wrong"&&<div style={{color:"#FF6B6B",fontSize:22,marginBottom:12,fontWeight:800}}>❌ -{profile.minutes_per_wrong} min — Try again!</div>}
           {!feedback&&<button className="btn btn-primary" onClick={submitAnswer} style={{width:"100%",fontSize:20}}>Check Answer ✓</button>}
           <div style={{marginTop:20,display:"flex",justifyContent:"center",gap:8}}>
             {Array.from({length:Math.min(streak,10)}).map((_,i)=><span key={i} style={{fontSize:16}}>⭐</span>)}
@@ -381,7 +500,8 @@ export default function MathForMinutes() {
         </div>
       )}
 
-      {screen==="summary" && profile && (
+      {/* ── SUMMARY ── */}
+      {(user||childFamily) && screen==="summary" && profile && (
         <div className="card" style={{textAlign:"center"}}>
           <div style={{fontSize:52,marginBottom:8}}>🎉</div>
           <h2 style={{color:"white",fontSize:30,margin:"0 0 6px"}}>Great work, {profile.name}!</h2>
@@ -395,10 +515,10 @@ export default function MathForMinutes() {
               </div>
             ))}
           </div>
-          <div style={{background:"rgba(78,205,196,0.08)",border:"1px solid rgba(78,205,196,0.2)",borderRadius:14,padding:"12px 16px",marginBottom:20,color:"rgba(255,255,255,0.5)",fontSize:13}}>
-            ✅ Results saved to parent dashboard
+          <div style={{background:"rgba(78,205,196,0.08)",border:"1px solid rgba(78,205,196,0.2)",borderRadius:14,padding:"12px 16px",marginBottom:16,color:"rgba(255,255,255,0.5)",fontSize:13}}>
+            ✅ Results sent to parent dashboard
           </div>
-          {settings.parentPhone&&(
+          {familyData?.parent_phone&&(
             <button className="btn btn-primary" style={{width:"100%",fontSize:17,marginBottom:10}} onClick={sendWhatsApp}>
               📨 Send Results via WhatsApp
             </button>
@@ -407,7 +527,8 @@ export default function MathForMinutes() {
         </div>
       )}
 
-      {screen==="timer" && (
+      {/* ── TIMER ── */}
+      {(user||childFamily) && screen==="timer" && (
         <div className="card" style={{textAlign:"center"}}>
           <h2 style={{color:"white",fontSize:28,margin:"0 0 8px"}}>🌐 Internet Time!</h2>
           <p style={{color:"rgba(255,255,255,0.4)",margin:"0 0 28px"}}>Time remaining on your session</p>
@@ -423,11 +544,12 @@ export default function MathForMinutes() {
         </div>
       )}
 
-      {screen==="pin" && (
+      {/* ── PIN (parent dashboard gate) ── */}
+      {user && screen==="pin" && (
         <div className="card" style={{textAlign:"center"}}>
           <div style={{fontSize:40,marginBottom:12}}>🔐</div>
-          <h2 style={{color:"white",fontSize:28,margin:"0 0 8px"}}>Parent Access</h2>
-          <p style={{color:"rgba(255,255,255,0.4)",margin:"0 0 24px",fontSize:14}}>Enter your PIN to access settings</p>
+          <h2 style={{color:"white",fontSize:28,margin:"0 0 8px"}}>Parent Dashboard</h2>
+          <p style={{color:"rgba(255,255,255,0.4)",margin:"0 0 24px",fontSize:14}}>Enter your PIN</p>
           <div style={{display:"flex",justifyContent:"center",gap:10,marginBottom:24}}>
             {[0,1,2,3].map(i=><div key={i} style={{width:16,height:16,borderRadius:"50%",background:pinInput.length>i?"#4ECDC4":"rgba(255,255,255,0.2)",transition:"background 0.2s"}}/>)}
           </div>
@@ -435,107 +557,142 @@ export default function MathForMinutes() {
           <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,maxWidth:240,margin:"0 auto 20px"}}>
             {[1,2,3,4,5,6,7,8,9,"",0,"⌫"].map((d,i)=>(
               <button key={i} className="pin-btn" disabled={d===""} style={{visibility:d===""?"hidden":"visible"}}
-                onClick={()=>{if(d==="⌫")setPinInput(p=>p.slice(0,-1));else if(pinInput.length<4){const np=pinInput+d;setPinInput(np);if(np.length===4)setTimeout(()=>{if(np===settings.parentPin){setScreen("settings");setPinError(false);}else{setPinError(true);setPinInput("");}},200);}}}>
+                onClick={()=>{if(d==="⌫")setPinInput(p=>p.slice(0,-1));else if(pinInput.length<4){const np=pinInput+d;setPinInput(np);if(np.length===4)setTimeout(()=>{if(np===parentPin){setScreen("dashboard");setPinError(false);setPinInput("");}else{setPinError(true);setPinInput("");}},200);}}}>
                 {d}
               </button>
             ))}
           </div>
-          <button className="btn btn-ghost" onClick={()=>setScreen(activeProfile?"home":"select")} style={{width:"100%",fontSize:14}}>Cancel</button>
+          <button className="btn btn-ghost" onClick={()=>setScreen("select")} style={{width:"100%",fontSize:14}}>Cancel</button>
         </div>
       )}
 
-      {screen==="settings" && (
+      {/* ── PARENT DASHBOARD ── */}
+      {user && screen==="dashboard" && (
         <div className="card" style={{maxHeight:"90vh",overflowY:"auto"}}>
-          <h2 style={{color:"white",fontSize:26,margin:"0 0 20px"}}>⚙️ Parent Settings</h2>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+            <h2 style={{color:"white",fontSize:24,margin:0}}>⚙️ Parent Dashboard</h2>
+            <button className="btn btn-ghost" onClick={()=>setScreen("select")} style={{fontSize:13,padding:"8px 14px"}}>← Back</button>
+          </div>
 
-          <div style={{background:"rgba(78,205,196,0.08)",border:"1px solid rgba(78,205,196,0.2)",borderRadius:16,padding:16,marginBottom:24}}>
+          {/* Family code */}
+          <div style={{background:"rgba(78,205,196,0.08)",border:"1px solid rgba(78,205,196,0.2)",borderRadius:16,padding:16,marginBottom:20,textAlign:"center"}}>
+            <div style={{color:"rgba(255,255,255,0.5)",fontSize:12,marginBottom:6}}>FAMILY CODE — share with your children</div>
+            <div style={{color:"#4ECDC4",fontSize:36,fontWeight:800,letterSpacing:8}}>{family?.family_code}</div>
+          </div>
+
+          {/* Results */}
+          <div style={{marginBottom:24}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-              <div style={{color:"#4ECDC4",fontWeight:800,fontSize:15}}>📊 Session Results</div>
+              <div style={{color:"white",fontWeight:800,fontSize:15}}>📊 Session Results</div>
               <select value={filterProfile} onChange={e=>setFilterProfile(e.target.value)} style={{width:"auto",padding:"6px 10px",fontSize:13}}>
                 <option value="all">All children</option>
-                {settings.profiles.map(p=><option key={p.id} value={p.id}>{p.avatar} {p.name}</option>)}
+                {profiles.map(p=><option key={p.id} value={p.id}>{p.avatar} {p.name}</option>)}
               </select>
             </div>
-            {filteredResults.length===0 ? (
+            {filteredSessions.length===0 ? (
               <div style={{color:"rgba(255,255,255,0.3)",fontSize:13,textAlign:"center",padding:"12px 0"}}>No sessions yet</div>
-            ) : filteredResults.slice(0,10).map((r,i)=>(
+            ) : filteredSessions.slice(0,10).map((r,i)=>(
               <div key={i} className="result-row">
-                <div style={{fontSize:28}}>{r.profileAvatar||"🦁"}</div>
+                <div style={{fontSize:28}}>{r.profile_avatar||"🦁"}</div>
                 <div style={{flex:1}}>
-                  <div style={{color:"white",fontWeight:700,fontSize:14}}>{r.profileName} · <span style={{color:diffColor[r.difficulty],fontSize:12}}>{diffLabel[r.difficulty]}</span></div>
-                  <div style={{color:"rgba(255,255,255,0.4)",fontSize:12}}>{formatDate(r.ts)}</div>
+                  <div style={{color:"white",fontWeight:700,fontSize:14}}>{r.profile_name} · <span style={{color:diffColor[r.difficulty],fontSize:12}}>{diffLabel[r.difficulty]}</span></div>
+                  <div style={{color:"rgba(255,255,255,0.4)",fontSize:12}}>{formatDate(r.created_at)}</div>
                 </div>
                 <div style={{textAlign:"right"}}>
                   <div style={{color:"#4ECDC4",fontWeight:800,fontSize:15}}>{r.minutes} min</div>
-                  <div style={{color:"rgba(255,255,255,0.4)",fontSize:12}}>✅{r.correct} ❌{r.wrong} 🔥{r.bestStreak}</div>
+                  <div style={{color:"rgba(255,255,255,0.4)",fontSize:12}}>✅{r.correct} ❌{r.wrong} 🔥{r.best_streak}</div>
                 </div>
               </div>
             ))}
-            {filteredResults.length>10&&<div style={{color:"rgba(255,255,255,0.3)",fontSize:12,textAlign:"center",marginTop:8}}>Showing last 10 of {filteredResults.length} sessions</div>}
           </div>
 
-          <div style={{display:"flex",flexDirection:"column",gap:16,marginBottom:24}}>
-            <div>
-              <label>WhatsApp number (for reports)</label>
-              <input type="text" placeholder="e.g. +972501234567" value={tempSettings.parentPhone} onChange={e=>setTempSettings(s=>({...s,parentPhone:e.target.value}))}/>
-              <div style={{color:"rgba(255,255,255,0.3)",fontSize:12,marginTop:6}}>Include country code, no spaces</div>
-            </div>
-            <div>
-              <label>Change Parent PIN</label>
-              <input type="password" maxLength={4} placeholder="New 4-digit PIN" value={tempSettings.parentPin} onChange={e=>setTempSettings(s=>({...s,parentPin:e.target.value.replace(/\D/g,"").slice(0,4)}))}/>
+          {/* WhatsApp number */}
+          <div style={{marginBottom:20}}>
+            <label>WhatsApp number</label>
+            <div style={{display:"flex",gap:8}}>
+              <input type="text" placeholder="+972501234567" defaultValue={family?.parent_phone||""} id="phone-input"/>
+              <button className="btn btn-primary" style={{padding:"12px 16px",fontSize:14}} onClick={()=>saveParentPhone(document.getElementById("phone-input").value)}>Save</button>
             </div>
           </div>
 
-          <div style={{borderTop:"1px solid rgba(255,255,255,0.1)",paddingTop:20,marginBottom:20}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-              <label style={{margin:0}}>Child Profiles</label>
-              <button className="btn btn-primary" onClick={addProfile} style={{fontSize:13,padding:"8px 16px"}}>+ Add Child</button>
-            </div>
-            {tempSettings.profiles.map((p,idx)=>(
+          {/* PIN */}
+          <div style={{marginBottom:24}}>
+            <label>Change PIN</label>
+            <input type="password" maxLength={4} placeholder="New 4-digit PIN" id="pin-input"
+              onChange={e=>{const v=e.target.value.replace(/\D/g,"").slice(0,4);e.target.value=v;if(v.length===4){setParentPin(v);localStorage.setItem("mfm-pin",v);}}}/>
+          </div>
+
+          {/* Child profiles */}
+          <div style={{borderTop:"1px solid rgba(255,255,255,0.1)",paddingTop:20}}>
+            <label style={{marginBottom:16}}>Child Profiles</label>
+            {profiles.map(p=>(
               <div key={p.id} style={{background:"rgba(255,255,255,0.05)",borderRadius:16,padding:16,marginBottom:12}}>
-                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
-                  <div style={{fontSize:32}}>{p.avatar||AVATARS[idx%AVATARS.length]}</div>
-                  <div style={{flex:1}}>
-                    <input type="text" placeholder="Child's name" value={p.name} onChange={e=>updateProfile(p.id,"name",e.target.value)} style={{marginBottom:0}}/>
+                {editingProfile?.id===p.id ? (
+                  <>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+                      <div><label>Name</label><input type="text" value={editingProfile.name} onChange={e=>setEditingProfile(x=>({...x,name:e.target.value}))}/></div>
+                      <div><label>Avatar</label>
+                        <select value={editingProfile.avatar} onChange={e=>setEditingProfile(x=>({...x,avatar:e.target.value}))}>
+                          {AVATARS.map(a=><option key={a} value={a}>{a}</option>)}
+                        </select>
+                      </div>
+                      <div><label>Difficulty</label>
+                        <select value={editingProfile.difficulty} onChange={e=>setEditingProfile(x=>({...x,difficulty:e.target.value}))}>
+                          <option value="easy">⭐ Easy</option>
+                          <option value="medium">⭐⭐ Medium</option>
+                          <option value="hard">⭐⭐⭐ Hard</option>
+                          <option value="fractions">⭐⭐⭐⭐ Fractions</option>
+                          <option value="orderofops">⭐⭐⭐⭐⭐ Order of Ops</option>
+                          <option value="percent">⭐⭐⭐⭐⭐⭐ Percentages</option>
+                        </select>
+                      </div>
+                      <div><label>Mins/correct</label><input type="number" min="1" max="30" value={editingProfile.minutes_per_question} onChange={e=>setEditingProfile(x=>({...x,minutes_per_question:Math.max(1,parseInt(e.target.value)||1)}))}/></div>
+                      <div><label>Mins/wrong</label><input type="number" min="0" max="30" value={editingProfile.minutes_per_wrong} onChange={e=>setEditingProfile(x=>({...x,minutes_per_wrong:Math.max(0,parseInt(e.target.value)||0)}))}/></div>
+                    </div>
+                    <div style={{display:"flex",gap:8}}>
+                      <button className="btn btn-success" onClick={()=>saveProfile(p.id)} style={{flex:1,fontSize:14,padding:"10px"}}>Save</button>
+                      <button className="btn btn-ghost" onClick={()=>setEditingProfile(null)} style={{flex:1,fontSize:14,padding:"10px"}}>Cancel</button>
+                    </div>
+                  </>
+                ) : (
+                  <div style={{display:"flex",alignItems:"center",gap:12}}>
+                    <div style={{fontSize:32}}>{p.avatar}</div>
+                    <div style={{flex:1}}>
+                      <div style={{color:"white",fontWeight:800}}>{p.name}</div>
+                      <div style={{color:diffColor[p.difficulty],fontSize:12}}>{diffLabel[p.difficulty]} · +{p.minutes_per_question}/-{p.minutes_per_wrong} min</div>
+                    </div>
+                    <button className="btn btn-ghost" onClick={()=>setEditingProfile({...p})} style={{fontSize:13,padding:"8px 12px"}}>Edit</button>
+                    <button className="btn btn-danger" onClick={()=>deleteProfile(p.id)} style={{fontSize:13,padding:"8px 12px"}}>✕</button>
                   </div>
-                  {tempSettings.profiles.length>1&&(
-                    <button className="btn btn-danger" onClick={()=>removeProfile(p.id)} style={{fontSize:12,padding:"8px 12px"}}>✕</button>
-                  )}
-                </div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                  <div>
-                    <label>Avatar</label>
-                    <select value={p.avatar||AVATARS[idx%AVATARS.length]} onChange={e=>updateProfile(p.id,"avatar",e.target.value)}>
-                      {AVATARS.map(a=><option key={a} value={a}>{a}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label>Difficulty</label>
-                    <select value={p.difficulty} onChange={e=>updateProfile(p.id,"difficulty",e.target.value)}>
-                      <option value="easy">⭐ Easy</option>
-                      <option value="medium">⭐⭐ Medium</option>
-                      <option value="hard">⭐⭐⭐ Hard</option>
-                      <option value="fractions">⭐⭐⭐⭐ Fractions</option>
-                      <option value="orderofops">⭐⭐⭐⭐⭐ Order of Ops</option>
-                      <option value="percent">⭐⭐⭐⭐⭐⭐ Percentages</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label>Mins per correct</label>
-                    <input type="number" min="1" max="30" value={p.minutesPerQuestion} onChange={e=>updateProfile(p.id,"minutesPerQuestion",Math.max(1,parseInt(e.target.value)||1))}/>
-                  </div>
-                  <div>
-                    <label>Mins per wrong</label>
-                    <input type="number" min="0" max="30" value={p.minutesPerWrong} onChange={e=>updateProfile(p.id,"minutesPerWrong",Math.max(0,parseInt(e.target.value)||0))}/>
-                  </div>
-                </div>
+                )}
               </div>
             ))}
-          </div>
 
-          <div style={{display:"flex",gap:10}}>
-            <button className="btn btn-success" onClick={saveSettings} style={{flex:1}}>Save Settings</button>
-            <button className="btn btn-ghost" onClick={()=>setScreen(activeProfile?"home":"select")} style={{flex:1}}>Cancel</button>
+            {/* Add new profile */}
+            <div style={{background:"rgba(255,255,255,0.03)",borderRadius:16,padding:16,border:"1px dashed rgba(255,255,255,0.15)"}}>
+              <div style={{color:"rgba(255,255,255,0.5)",fontSize:13,marginBottom:12,fontWeight:700}}>+ Add Child</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+                <div><label>Name</label><input type="text" placeholder="Child's name" value={newProfileName} onChange={e=>setNewProfileName(e.target.value)}/></div>
+                <div><label>Avatar</label>
+                  <select value={newProfileAvatar} onChange={e=>setNewProfileAvatar(e.target.value)}>
+                    {AVATARS.map(a=><option key={a} value={a}>{a}</option>)}
+                  </select>
+                </div>
+                <div><label>Difficulty</label>
+                  <select value={newProfileDiff} onChange={e=>setNewProfileDiff(e.target.value)}>
+                    <option value="easy">⭐ Easy</option>
+                    <option value="medium">⭐⭐ Medium</option>
+                    <option value="hard">⭐⭐⭐ Hard</option>
+                    <option value="fractions">⭐⭐⭐⭐ Fractions</option>
+                    <option value="orderofops">⭐⭐⭐⭐⭐ Order of Ops</option>
+                    <option value="percent">⭐⭐⭐⭐⭐⭐ Percentages</option>
+                  </select>
+                </div>
+                <div><label>Mins/correct</label><input type="number" min="1" max="30" value={newProfileMPQ} onChange={e=>setNewProfileMPQ(Math.max(1,parseInt(e.target.value)||1))}/></div>
+                <div><label>Mins/wrong</label><input type="number" min="0" max="30" value={newProfileMPW} onChange={e=>setNewProfileMPW(Math.max(0,parseInt(e.target.value)||0))}/></div>
+              </div>
+              <button className="btn btn-primary" onClick={addProfile} style={{width:"100%",fontSize:15}}>Add Child</button>
+            </div>
           </div>
         </div>
       )}
