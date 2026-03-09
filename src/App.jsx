@@ -332,7 +332,7 @@ export default function MathForMinutes() {
   const e = (code) => String.fromCodePoint(code);
   const msg = `${e(0x1F9EE)} Math For Minutes Report\n${e(0x1F466)} ${settings.childName} just finished!\n\n${e(0x2705)} Correct: ${questionsAnswered}\n${e(0x274C)} Wrong: ${wrongAnswers}\n${e(0x23F1)} Minutes earned: ${earnedMins}\n${e(0x1F525)} Best streak: ${bestStreak}\n${e(0x1F4DA)} Level: ${diffLabel[settings.difficulty]}\n\nPlease unlock ${earnedMins} minute${earnedMins!==1?"s":""} of internet time ${e(0x1F64F)}`;
   const encoded = encodeURIComponent(msg);
-  const intentUrl = `intent://send?text=${encoded}#Intent;scheme=whatsapp;package=com.whatsapp;end`;
+  const intentUrl = `intent://send?phone=${settings.parentPhone.replace(/\D/g,'')}&text=${encoded}#Intent;scheme=whatsapp;package=com.whatsapp;end`;
   window.location.href = intentUrl;
 }}>
  
