@@ -335,8 +335,7 @@ export default function MathForMinutes() {
   const intentUrl = `intent://send?text=${encoded}#Intent;scheme=whatsapp;package=com.whatsapp;end`;
   window.location.href = intentUrl;
 }}>
-  }
-}}>
+ 
                 📨 Send Results via WhatsApp
               </button>
             </>
