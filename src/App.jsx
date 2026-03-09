@@ -367,7 +367,7 @@ export default function MathForMinutes() {
   window.location.href = intentUrl;
 }}>
 
-                📋 Open Parent Chat (paste to send)
+                📋 Send results
               </button>
             </>
           ) : (
