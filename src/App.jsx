@@ -142,7 +142,12 @@ function TimerRing({ totalSecs, remainingSecs }) {
 }
 
 export default function MathForMinutes() {
-  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState(() => {
+  try {
+    const saved = localStorage.getItem("mfm-settings");
+    return saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SETTINGS;
+  } catch { return DEFAULT_SETTINGS; }
+});
   const [screen, setScreen] = useState("home");
   const [question, setQuestion] = useState(null);
   const [input, setInput] = useState("");
