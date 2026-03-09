@@ -328,13 +328,17 @@ export default function MathForMinutes() {
                 <div style={{ color:"white", fontSize:20, marginTop:4, fontWeight:800 }}>{settings.parentPhone}</div>
               </div>
               <button className="btn btn-primary" style={{ width:"100%", fontSize:17, marginBottom:10 }}
-              onClick={() => {
+             onClick={() => {
   const e = (code) => String.fromCodePoint(code);
   const msg = `${e(0x1F9EE)} Math For Minutes Report\n${e(0x1F466)} ${settings.childName} just finished!\n\n${e(0x2705)} Correct: ${questionsAnswered}\n${e(0x274C)} Wrong: ${wrongAnswers}\n${e(0x23F1)} Minutes earned: ${earnedMins}\n${e(0x1F525)} Best streak: ${bestStreak}\n${e(0x1F4DA)} Level: ${diffLabel[settings.difficulty]}\n\nPlease unlock ${earnedMins} minute${earnedMins!==1?"s":""} of internet time ${e(0x1F64F)}`;
-  navigator.clipboard.writeText(msg).then(() => {
-    alert(msg);
-    window.open(`https://wa.me/${settings.parentPhone.replace(/\D/g,'')}`, '_blank');
-  });
+  if (navigator.share) {
+    navigator.share({ text: msg });
+  } else {
+    navigator.clipboard.writeText(msg).then(() => {
+      alert('Message copied! Opening WhatsApp — just paste it.');
+      window.open(`https://wa.me/${settings.parentPhone.replace(/\D/g,'')}`, '_blank');
+    });
+  }
 }}>
                 📨 Send Results via WhatsApp
               </button>
