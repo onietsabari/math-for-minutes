@@ -188,6 +188,8 @@ export default function MathForMinutes() {
   const [newProfileDiff, setNewProfileDiff] = useState("medium");
   const [newProfileMPQ, setNewProfileMPQ] = useState(2);
   const [newProfileMPW, setNewProfileMPW] = useState(1);
+  const familyLoadedRef = useRef(false);
+
 
   const inputRef = useRef(null);
   const intervalRef = useRef(null);
@@ -205,7 +207,7 @@ export default function MathForMinutes() {
       setUser(newUser);
       if (newUser && !family) loadFamily(newUser);
       else if (!newUser) {
-        setFamily(null); setProfiles([]); setSessions([]); setLoading(false);
+        setFamily(null); setProfiles([]); setSessions([]); setLoading(false);familyLoadedRef.current = false;
       }
     });
 
@@ -222,6 +224,8 @@ export default function MathForMinutes() {
     return () => { subscription.unsubscribe(); channel.unsubscribe(); };
   }, []);
   async function loadFamily(u) {
+  if (familyLoadedRef.current) return;
+  familyLoadedRef.current = true;
   setLoading(true);
   
   // First try to find existing family
