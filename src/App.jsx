@@ -202,14 +202,17 @@ export default function MathForMinutes() {
       else setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
-      const newUser = session?.user ?? null;
-      setUser(newUser);
-      if (newUser && !family) loadFamily(newUser);
-      else if (!newUser) {
-        setFamily(null); setProfiles([]); setSessions([]); setLoading(false);familyLoadedRef.current = false;
-      }
-    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+  // Only act on actual sign-in/sign-out events, ignore token refreshes
+  if (event === "SIGNED_IN" && !familyLoadedRef.current) {
+    setUser(session.user);
+    loadFamily(session.user);
+  } else if (event === "SIGNED_OUT") {
+    familyLoadedRef.current = false;
+    setUser(null);
+    setFamily(null); setProfiles([]); setSessions([]); setLoading(false);
+  }
+});
 
     const savedCode = localStorage.getItem("mfm-child-code");
     if (savedCode) loadChildFamily(savedCode);
