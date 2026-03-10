@@ -218,19 +218,40 @@ return () => { subscription.unsubscribe(); channel.unsubscribe(); };
   }, []);
 
   async function loadFamily(u) {
-    setLoading(true);
-    let { data: fam } = await supabase.from("families").select("*").eq("owner_id", u.id).maybeSingle();
-    if (!fam) {
-      const { data: newFam } = await supabase.from("families").insert({ owner_id: u.id }).select().single();
-      fam = newFam;
-    }
-    setFamily(fam);
-    const { data: profs } = await supabase.from("profiles").select("*").eq("family_id", fam.id).order("created_at");setParentPhone(fam.parent_phone || "");
-    setProfiles(profs || []);
-    const { data: sess } = await supabase.from("sessions").select("*").eq("family_id", fam.id).order("created_at", { ascending: false }).limit(50);
-    setSessions(sess || []);
-    setLoading(false);
+  setLoading(true);
+  
+  // First try to find existing family
+  const { data: existing } = await supabase
+    .from("families")
+    .select("*")
+    .eq("owner_id", u.id)
+    .maybeSingle();
+
+  let fam = existing;
+  
+  // Only create if truly none exists
+  if (!fam) {
+    const { data: newFam, error } = await supabase
+      .from("families")
+      .insert({ owner_id: u.id })
+      .select()
+      .maybeSingle();
+    if (!error) fam = newFam;
   }
+
+  if (!fam) { setLoading(false); return; }
+  
+  setFamily(fam);
+  setParentPhone(fam.parent_phone || "");
+  
+  const { data: profs } = await supabase.from("profiles").select("*").eq("family_id", fam.id).order("created_at");
+  setProfiles(profs || []);
+  
+  const { data: sess } = await supabase.from("sessions").select("*").eq("family_id", fam.id).order("created_at", { ascending: false }).limit(50);
+  setSessions(sess || []);
+  
+  setLoading(false);
+}
 
   async function loadChildFamily(code) {
     const { data: fam } = await supabase.from("families").select("*").eq("family_code", code.toUpperCase()).single();
