@@ -219,7 +219,7 @@ return () => { subscription.unsubscribe(); channel.unsubscribe(); };
 
   async function loadFamily(u) {
     setLoading(true);
-    let { data: fam } = await supabase.from("families").select("*").eq("owner_id", u.id).single();
+    let { data: fam } = await supabase.from("families").select("*").eq("owner_id", u.id).maybeSingle();
     if (!fam) {
       const { data: newFam } = await supabase.from("families").insert({ owner_id: u.id }).select().single();
       fam = newFam;
