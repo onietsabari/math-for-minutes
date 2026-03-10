@@ -242,12 +242,12 @@ export default function MathForMinutes() {
   
   // Only create if truly none exists
   if (!fam) {
-    const { data: newFam, error } = await supabase
+    cconst { data: newFam } = await supabase
       .from("families")
-      .insert({ owner_id: u.id })
+      .upsert({ owner_id: u.id }, { onConflict: "owner_id", ignoreDuplicates: true })
       .select()
       .maybeSingle();
-    if (!error) fam = newFam;
+    fam = newFam;
   }
 
   if (!fam) { setLoading(false); return; }
