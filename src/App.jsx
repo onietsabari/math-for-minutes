@@ -176,6 +176,7 @@ export default function MathForMinutes() {
   const [timerSecs, setTimerSecs] = useState(0);
   const [totalSecs, setTotalSecs] = useState(0);
   const [shake, setShake] = useState(false);
+  const [wrongAttempts, setWrongAttempts] = useState(0);
 
   // Parent settings state
   const [pinInput, setPinInput] = useState("");
@@ -340,6 +341,7 @@ export default function MathForMinutes() {
   },[screen]);
 
   function selectProfile(id) {
+    setWrongAttempts(0);
     setActiveProfile(id);
     setEarnedMins(0); setStreak(0); setBestStreak(0);
     setQuestionsAnswered(0); setWrongAnswers(0);
@@ -360,6 +362,7 @@ export default function MathForMinutes() {
 
   function handleCorrect() {
     const ns=streak+1;
+    setWrongAttempts(0);
     setFeedback("correct");setBurstKey(k=>k+1);
     setStreak(ns);setBestStreak(b=>Math.max(b,ns));
     setQuestionsAnswered(q=>q+1);
@@ -367,11 +370,21 @@ export default function MathForMinutes() {
     setTimeout(newQuestion,900);
   }
 
-  function handleWrong() {
-    setFeedback("wrong");setShake(true);setWrongAnswers(w=>w+1);
-    setEarnedMins(m=>Math.max(0,m-profile.minutes_per_wrong));
-    setTimeout(()=>{setShake(false);setInput("");setFeedback(null);inputRef.current?.focus();},700);
+  const [wrongAttempts, setWrongAttempts] = useState(0);
+
+function handleWrong() {
+  const attempts = wrongAttempts + 1;
+  setFeedback("wrong"); setShake(true); setWrongAnswers(w => w + 1);
+  setEarnedMins(m => Math.max(0, m - profile.minutes_per_wrong));
+  if (attempts >= 3) {
+    setWrongAttempts(0);
+    setFeedback("reveal");
+    setTimeout(() => { setShake(false); newQuestion(); }, 2500);
+  } else {
+    setWrongAttempts(attempts);
+    setTimeout(() => { setShake(false); setInput(""); setFeedback(null); inputRef.current?.focus(); }, 700);
   }
+}
 
   function startTimer() {
     setTimerSecs(earnedMins*60);setTotalSecs(earnedMins*60);setScreen("timer");
@@ -535,7 +548,8 @@ export default function MathForMinutes() {
             onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submitAnswer()} placeholder="?"
             style={{marginBottom:20,animation:shake?"shake 0.4s ease":"none",borderColor:feedback==="correct"?"#4ECDC4":feedback==="wrong"?"#FF6B6B":undefined}}/>
           {feedback==="correct"&&<div style={{color:"#4ECDC4",fontSize:22,marginBottom:12,fontWeight:800}}>✅ Correct! +{profile.minutes_per_question} min</div>}
-          {feedback==="wrong"&&<div style={{color:"#FF6B6B",fontSize:22,marginBottom:12,fontWeight:800}}>❌ -{profile.minutes_per_wrong} min — Try again!</div>}
+          {feedback==="wrong"&&<div style={{color:"#FF6B6B",fontSize:22,marginBottom:12,fontWeight:800}}>❌ -{profile.minutes_per_wrong} min — Try again! ({3-wrongAttempts} left)</div>}
+{feedback==="reveal"&&<div style={{color:"#FFD700",fontSize:22,marginBottom:12,fontWeight:800}}>💡 Answer: {question?.answer}</div>}
           {!feedback&&<button className="btn btn-primary" onClick={submitAnswer} style={{width:"100%",fontSize:20}}>Check Answer ✓</button>}
           <div style={{marginTop:20,display:"flex",justifyContent:"center",gap:8}}>
             {Array.from({length:Math.min(streak,10)}).map((_,i)=><span key={i} style={{fontSize:16}}>⭐</span>)}
