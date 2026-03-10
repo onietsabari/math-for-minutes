@@ -199,24 +199,28 @@ export default function MathForMinutes() {
       if (session?.user) loadFamily(session.user);
       else setLoading(false);
     });
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) loadFamily(session.user);
-      else { setFamily(null); setProfiles([]); setSessions([]); setLoading(false); }
+      const newUser = session?.user ?? null;
+      setUser(newUser);
+      if (newUser && !family) loadFamily(newUser);
+      else if (!newUser) {
+        setFamily(null); setProfiles([]); setSessions([]); setLoading(false);
+      }
     });
-    // Check if child device has a saved family code
+
     const savedCode = localStorage.getItem("mfm-child-code");
     if (savedCode) loadChildFamily(savedCode);
+
     const channel = supabase
-  .channel("sessions-changes")
-  .on("postgres_changes", { event: "INSERT", schema: "public", table: "sessions" },
-    payload => setSessions(s => [payload.new, ...s])
-  )
-  .subscribe();
+      .channel("sessions-changes")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "sessions" },
+        payload => setSessions(s => [payload.new, ...s])
+      )
+      .subscribe();
 
-return () => { subscription.unsubscribe(); channel.unsubscribe(); };
+    return () => { subscription.unsubscribe(); channel.unsubscribe(); };
   }, []);
-
   async function loadFamily(u) {
   setLoading(true);
   
