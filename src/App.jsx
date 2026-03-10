@@ -370,7 +370,7 @@ export default function MathForMinutes() {
     setTimeout(newQuestion,900);
   }
 
-  const [wrongAttempts, setWrongAttempts] = useState(0);
+ 
 
 function handleWrong() {
   const attempts = wrongAttempts + 1;
