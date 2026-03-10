@@ -536,7 +536,7 @@ function handleWrong() {
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:28}}>
             <button className="btn btn-ghost" onClick={()=>setScreen("home")} style={{fontSize:13,padding:"8px 16px"}}>← Home</button>
             <div style={{textAlign:"right"}}>
-              <div style={{color:"#4ECDC4",fontSize:22,fontWeight:800}}>{earnedMins} min</div>
+              <div key={earnedMins} style={{color:"#4ECDC4",fontSize:22,fontWeight:800}}>{earnedMins} min</div>
               {streak>1&&<div style={{color:"#FFD700",fontSize:12}}>🔥 {streak} streak!</div>}
             </div>
           </div>
