@@ -366,7 +366,7 @@ export default function MathForMinutes() {
     setFeedback("correct");setBurstKey(k=>k+1);
     setStreak(ns);setBestStreak(b=>Math.max(b,ns));
     setQuestionsAnswered(q=>q+1);
-    setEarnedMins(m=>m+profile.minutes_per_question);
+    setEarnedMins(m => m + parseInt(profile.minutes_per_question) || 2);
     setTimeout(newQuestion,900);
   }
 
@@ -375,7 +375,7 @@ export default function MathForMinutes() {
 function handleWrong() {
   const attempts = wrongAttempts + 1;
   setFeedback("wrong"); setShake(true); setWrongAnswers(w => w + 1);
-  setEarnedMins(m => Math.max(0, m - profile.minutes_per_wrong));
+  setEarnedMins(m => Math.max(0, m - (parseInt(profile.minutes_per_wrong) || 1)));
   if (attempts >= 3) {
     setWrongAttempts(0);
     setFeedback("reveal");
